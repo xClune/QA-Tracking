@@ -1,152 +1,98 @@
-// Testing requirements based on Queensland MRTS standards
+// Testing requirements based on Queensland MRTS standards - PAVEMENT WORKS ONLY
+
 export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) => {
   const tests = [];
-  const effectiveArea = unit === 'm2' ? quantity : area || (quantity * 8); // Default 8m width
+  
+  // Calculate effective area in m²
+  let effectiveArea = 0;
+  if (unit === 'm2' || unit === 'm²') {
+    effectiveArea = quantity;
+  } else if (area && area > 0) {
+    effectiveArea = area;
+  } else {
+    // For linear treatments, we can't determine area without width
+    // Only generate tests if we have a valid area
+    return tests;
+  }
 
-  // MRTS04/05 Unbound Pavement Tests (In-situ stabilisation, granular works)
-  if (treatment.includes('In-situ stabilisation') || 
-      treatment.includes('Granular overlay') || 
-      treatment.includes('Reconstruct unbound') ||
-      treatment.includes('Foamed bitumen stabilisation')) {
-    
-    // Sand replacement tests (MRTS04)
-    const sandTests = Math.max(1, Math.ceil(effectiveArea / 1000)); // 1 per 1000m2
+  // Only generate tests for PAVEMENT WORKS that require compaction testing
+  const requiresTesting = isPavementWork(treatment);
+  
+  if (!requiresTesting) {
+    console.log(`No testing required for: ${treatment}`);
+    return tests;
+  }
+
+  console.log(`Testing required for: ${treatment}, Area: ${effectiveArea}m²`);
+
+  // MRTS04 Compaction Testing - Primary testing requirement for pavement works
+  if (effectiveArea > 0) {
+    // Sand replacement tests: 1 per 1000m²
+    const sandTests = Math.max(1, Math.ceil(effectiveArea / 1000));
     tests.push({
       test: 'Sand Replacement Test (MRTS04)',
       frequency: sandTests,
-      description: 'Field density testing of compacted stabilised layers',
+      description: 'Field density testing of compacted pavement layers',
       standard: 'MRTS04',
-      targetSMDD: '≥100%',
-      priority: 'high'
+      targetSMDD: '≥100% SMDD',
+      priority: 'high',
+      method: 'Sand Replacement'
     });
     
-    // Nuclear densometer tests (higher frequency)
-    const nucTests = Math.max(3, Math.ceil(effectiveArea / 500)); // 1 per 500m2, min 3
+    // Nuclear densometer tests: 2 per 1000m² (higher frequency for QC)
+    const nucTests = Math.max(2, Math.ceil(effectiveArea / 500)); // 2 per 1000m² = 1 per 500m²
     tests.push({
       test: 'Nuclear Densometer Test (MRTS04)',
       frequency: nucTests,
-      description: 'Nuclear density testing for ongoing QC',
+      description: 'Nuclear density testing for ongoing quality control',
       standard: 'MRTS04',
-      targetSMDD: '≥100%',
-      priority: 'high'
+      targetSMDD: '≥100% SMDD',
+      priority: 'high',
+      method: 'Nuclear Densometer'
     });
 
-    // Material sampling for UCS (stabilised materials)
-    if (treatment.includes('In-situ stabilisation') || treatment.includes('Foamed bitumen stabilisation')) {
+    // Additional testing for stabilized materials
+    if (isStabilizedMaterial(treatment)) {
+      // UCS Testing for stabilized materials
+      const ucsTests = Math.max(1, Math.ceil(effectiveArea / 2000)); // 1 per 2000m²
       tests.push({
         test: 'UCS Testing (MRTS07a)',
-        frequency: Math.max(1, Math.ceil(effectiveArea / 2000)), // 1 per 2000m2
+        frequency: ucsTests,
         description: 'Unconfined compressive strength at 7 days',
         standard: 'MRTS07a',
         targetUCS: '≥1.5 MPa @ 7 days',
-        priority: 'high'
+        priority: 'high',
+        method: 'Laboratory Testing'
       });
 
-      // Additional UCS at 28 days for critical works
+      // 28-day UCS for larger areas
       if (effectiveArea > 5000) {
+        const ucs28Tests = Math.max(1, Math.ceil(effectiveArea / 5000));
         tests.push({
           test: 'UCS Testing 28-day (MRTS07a)',
-          frequency: Math.max(1, Math.ceil(effectiveArea / 5000)),
+          frequency: ucs28Tests,
           description: 'Unconfined compressive strength at 28 days',
           standard: 'MRTS07a',
           targetUCS: '≥2.0 MPa @ 28 days',
-          priority: 'medium'
+          priority: 'medium',
+          method: 'Laboratory Testing'
         });
       }
     }
 
-    // CBR testing for granular materials
-    if (treatment.includes('Granular overlay') || treatment.includes('Reconstruct unbound')) {
+    // CBR testing for granular pavement materials
+    if (isGranularPavement(treatment)) {
+      const cbrTests = Math.max(1, Math.ceil(effectiveArea / 3000)); // 1 per 3000m²
       tests.push({
         test: 'CBR Testing (MRTS05)',
-        frequency: Math.max(1, Math.ceil(effectiveArea / 3000)), // 1 per 3000m2
-        description: 'California Bearing Ratio testing',
+        frequency: cbrTests,
+        description: 'California Bearing Ratio testing of pavement material',
         standard: 'MRTS05',
         targetUCS: '≥80% @ 95% SMDD',
-        priority: 'medium'
+        priority: 'medium',
+        method: 'Laboratory Testing'
       });
     }
-  }
-
-  // MRTS11 Seal Tests
-  if (treatment.includes('Bitumen spray seal') || treatment.includes('Asphalt surfacing')) {
-    tests.push({
-      test: 'Seal Thickness Test (MRTS11)',
-      frequency: Math.max(1, Math.ceil(effectiveArea / 2000)), // 1 per 2000m2
-      description: 'Core sampling for thickness and seal quality',
-      standard: 'MRTS11',
-      targetThickness: 'As per specification',
-      priority: 'high'
-    });
-    
-    if (treatment.includes('Bitumen spray seal')) {
-      tests.push({
-        test: 'Aggregate Retention Test',
-        frequency: Math.max(1, Math.ceil(effectiveArea / 3000)), // 1 per 3000m2
-        description: 'Chip retention and embedment assessment',
-        standard: 'MRTS11',
-        targetRetention: '≥85%',
-        priority: 'medium'
-      });
-
-      tests.push({
-        test: 'Binder Application Rate Test',
-        frequency: Math.max(1, Math.ceil(effectiveArea / 5000)), // 1 per 5000m2
-        description: 'Verification of bitumen application rate',
-        standard: 'MRTS11',
-        targetRetention: 'As per design',
-        priority: 'medium'
-      });
-    }
-
-    if (treatment.includes('Asphalt surfacing')) {
-      tests.push({
-        test: 'Asphalt Density Test (MRTS11)',
-        frequency: Math.max(1, Math.ceil(effectiveArea / 1000)), // 1 per 1000m2
-        description: 'Core density testing of asphalt',
-        standard: 'MRTS11',
-        targetSMDD: '≥97%',
-        priority: 'high'
-      });
-    }
-  }
-
-  // Shoulder and formation works
-  if (treatment.includes('Heavy shoulder grading') || 
-      treatment.includes('formation grading') ||
-      treatment.includes('Reconstruct unsealed shoulder')) {
-    tests.push({
-      test: 'Compaction Test (MRTS04)',
-      frequency: Math.max(1, Math.ceil(quantity / 500)), // 1 per 500m linear
-      description: 'Density testing of shoulder material',
-      standard: 'MRTS04',
-      targetSMDD: '≥95%',
-      priority: 'medium'
-    });
-
-    // Material quality testing for imported materials
-    if (treatment.includes('imported material') || treatment.includes('50mm') || treatment.includes('75mm')) {
-      tests.push({
-        test: 'Material Quality Test (MRTS05)',
-        frequency: Math.max(1, Math.ceil(quantity / 1000)), // 1 per 1000m
-        description: 'Grading and plasticity testing of imported material',
-        standard: 'MRTS05',
-        targetUCS: 'Within specification limits',
-        priority: 'medium'
-      });
-    }
-  }
-
-  // Drainage works
-  if (treatment.includes('table drain') || treatment.includes('drainage')) {
-    tests.push({
-      test: 'Gradient and Alignment Check',
-      frequency: Math.max(1, Math.ceil(quantity / 200)), // 1 per 200m
-      description: 'Survey check of drainage grades and alignment',
-      standard: 'Survey',
-      targetUCS: 'As per design',
-      priority: 'low'
-    });
   }
 
   return tests.map(test => ({
@@ -154,8 +100,86 @@ export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) 
     lineNo,
     id: Date.now() + Math.random(),
     status: 'pending',
-    dateCreated: new Date().toISOString()
+    dateCreated: new Date().toISOString(),
+    areaUsed: effectiveArea
   }));
+};
+
+// Determine if treatment is pavement work requiring compaction testing
+const isPavementWork = (treatment) => {
+  if (!treatment) return false;
+  
+  const treatmentLower = treatment.toLowerCase();
+  
+  // Pavement works that require testing
+  const pavementKeywords = [
+    'heavy formation grading',
+    'reconstruct unbound',
+    'in-situ stabilisation',
+    'insitu stabilisation', 
+    'stabilisation',
+    'granular overlay',
+    'pavement',
+    'foamed bitumen',
+    'cement stabilisation',
+    'lime stabilisation'
+  ];
+
+  // Works that DO NOT require testing
+  const nonPavementKeywords = [
+    'bulk fill',
+    'reshape table drain',
+    'table drain',
+    'drainage',
+    'shoulder grading',
+    'light formation grading',
+    'medium formation grading',
+    'gravel resheeting',
+    'pothole repair',
+    'crack repair',
+    'edge repair',
+    'seal',
+    'spray seal',
+    'asphalt surfacing'
+  ];
+
+  // Check exclusions first
+  for (const keyword of nonPavementKeywords) {
+    if (treatmentLower.includes(keyword)) {
+      return false;
+    }
+  }
+
+  // Check if it's a pavement work
+  for (const keyword of pavementKeywords) {
+    if (treatmentLower.includes(keyword)) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// Check if treatment involves stabilized materials
+const isStabilizedMaterial = (treatment) => {
+  if (!treatment) return false;
+  
+  const treatmentLower = treatment.toLowerCase();
+  return treatmentLower.includes('stabilisation') || 
+         treatmentLower.includes('stabilization') ||
+         treatmentLower.includes('foamed bitumen') ||
+         treatmentLower.includes('cement') ||
+         treatmentLower.includes('lime');
+};
+
+// Check if treatment is granular pavement work
+const isGranularPavement = (treatment) => {
+  if (!treatment) return false;
+  
+  const treatmentLower = treatment.toLowerCase();
+  return (treatmentLower.includes('reconstruct unbound') || 
+          treatmentLower.includes('granular overlay')) &&
+         !isStabilizedMaterial(treatment);
 };
 
 // Test priority levels
@@ -170,19 +194,19 @@ export const mrtsStandards = {
   'MRTS04': {
     title: 'Unbound Pavement - Density Testing',
     description: 'Field density testing procedures for unbound pavement materials',
-    methods: ['Sand Replacement', 'Nuclear Densometer'],
-    targets: '≥95% SMDD (shoulders), ≥100% SMDD (pavement)'
+    methods: ['Sand Replacement: 1 per 1000m²', 'Nuclear Densometer: 2 per 1000m²'],
+    targets: '≥100% SMDD for pavement layers'
   },
   'MRTS05': {
     title: 'Unbound Pavement - Material Testing',
     description: 'Laboratory testing of unbound pavement materials',
-    methods: ['Grading', 'Plasticity Index', 'CBR'],
+    methods: ['Grading', 'Plasticity Index', 'CBR: 1 per 3000m²'],
     targets: 'PI ≤6, CBR ≥80%'
   },
   'MRTS07a': {
     title: 'Stabilised Pavement - UCS Testing',
     description: 'Unconfined compressive strength testing',
-    methods: ['Laboratory UCS', 'Field Core UCS'],
+    methods: ['Laboratory UCS: 1 per 2000m²', 'Field Core UCS'],
     targets: '≥1.5 MPa @ 7 days, ≥2.0 MPa @ 28 days'
   },
   'MRTS11': {
@@ -191,4 +215,27 @@ export const mrtsStandards = {
     methods: ['Core Sampling', 'Thickness Measurement', 'Retention Testing'],
     targets: 'Thickness as per design, Retention ≥85%'
   }
+};
+
+// Helper function to get testing summary for a treatment
+export const getTestingSummary = (treatment, area) => {
+  if (!isPavementWork(treatment) || !area || area <= 0) {
+    return {
+      testingRequired: false,
+      reason: 'No testing required - not a pavement work or no area specified'
+    };
+  }
+
+  const sandTests = Math.max(1, Math.ceil(area / 1000));
+  const nucTests = Math.max(2, Math.ceil(area / 500));
+  
+  return {
+    testingRequired: true,
+    area: area,
+    sandReplacementTests: sandTests,
+    nuclearTests: nucTests,
+    totalTests: sandTests + nucTests,
+    isStabilized: isStabilizedMaterial(treatment),
+    isGranular: isGranularPavement(treatment)
+  };
 };

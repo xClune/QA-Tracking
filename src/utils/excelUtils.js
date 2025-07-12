@@ -15,36 +15,87 @@ export const processForm4Upload = async (file) => {
     defval: ""
   });
 
-  // Process the Form 4 data
-  const processedData = jsonData.map((row, index) => {
-    const treatmentCode = getQRACode(row['Treatment Type']);
-    const area = row['Damage Length (m)'] * row['Damage Width (m)'] || row['Quantity'];
+  // Process the Form 4 data with proper end detection
+  const processedData = [];
+  let index = 0;
+  
+  for (const row of jsonData) {
+    // Check if this row has a valid line number - if not, we've reached the end
+    const lineNo = row['Line No.'] || row['Line No'] || row['LINE NO.'] || row['LINE NO'];
     
-    return {
+    // Stop processing if we encounter a row without a line number
+    if (!lineNo || lineNo === '' || lineNo === null || lineNo === undefined) {
+      console.log(`Form 4 processing stopped at row ${index + 11} - no line number found`);
+      break;
+    }
+    
+    // Additional validation - check if this looks like a valid treatment row
+    const treatmentType = row['Treatment Type'] || row['TREATMENT TYPE'] || row['Treatment'];
+    const startCh = row['Start\r\nCH. (m)'] || row['Start CH. (m)'] || row['START CH. (m)'] || row['Start CH'];
+    const finishCh = row['Finish\r\nCH. (m)'] || row['Finish CH. (m)'] || row['FINISH CH. (m)'] || row['Finish CH'];
+    
+    // If we have a line number but missing critical data, warn but continue
+    if (!treatmentType && !startCh && !finishCh) {
+      console.log(`Warning: Row ${index + 11} has line number ${lineNo} but missing treatment data - skipping`);
+      index++;
+      continue;
+    }
+    
+    // Check for numeric line number (some sheets might have text in line number column)
+    const lineNumber = parseFloat(lineNo);
+    if (isNaN(lineNumber)) {
+      console.log(`Form 4 processing stopped at row ${index + 11} - non-numeric line number: ${lineNo}`);
+      break;
+    }
+    
+    const treatmentCode = getQRACode(treatmentType);
+    const damageLength = parseFloat(row['Damage Length (m)'] || row['Length (m)'] || 0);
+    const damageWidth = parseFloat(row['Damage Width (m)'] || row['Width (m)'] || 0);
+    const quantity = parseFloat(row['Quantity'] || row['QUANTITY'] || 0);
+    const area = damageLength && damageWidth ? damageLength * damageWidth : quantity;
+    
+    const processedEntry = {
       id: Date.now() + index,
-      line_no: row['Line No.'],
-      start_ch: row['Start\r\nCH. (m)'] || row['Start CH. (m)'],
-      finish_ch: row['Finish\r\nCH. (m)'] || row['Finish CH. (m)'],
-      damage_length: row['Damage Length (m)'],
-      damage_width: row['Damage Width (m)'],
-      damage_depth: row['Damage Depth\r\n(m)'] || row['Damage Depth (m)'],
-      treatment_type: row['Treatment Type'],
+      line_no: lineNumber,
+      start_ch: parseFloat(startCh) || 0,
+      finish_ch: parseFloat(finishCh) || 0,
+      damage_length: damageLength,
+      damage_width: damageWidth,
+      damage_depth: parseFloat(row['Damage Depth\r\n(m)'] || row['Damage Depth (m)'] || row['Depth (m)'] || 0),
+      treatment_type: treatmentType || '',
       treatment_code: treatmentCode,
-      additional_description: row['Additional Description'],
-      quantity: row['Quantity'],
-      unit: row['Unit'],
+      additional_description: row['Additional Description'] || row['Description'] || '',
+      quantity: quantity,
+      unit: row['Unit'] || row['UNIT'] || 'm',
       area: area,
       status: 'planning',
       photos_received: false,
       photos_reviewed: false,
-      compaction_required: row['Treatment Type'].includes('stabilisation') || 
-                        row['Treatment Type'].includes('overlay') ||
-                        row['Treatment Type'].includes('Reconstruct'),
+      compaction_required: treatmentType ? (
+        treatmentType.includes('stabilisation') || 
+        treatmentType.includes('overlay') ||
+        treatmentType.includes('Reconstruct') ||
+        treatmentType.includes('Granular')
+      ) : false,
       itp_received: false,
       line_complete: false,
       date_created: new Date().toISOString()
     };
-  }).filter(row => row.line_no); // Filter out empty rows
+
+    processedData.push(processedEntry);
+    index++;
+  }
+
+  console.log(`Form 4 processing completed: ${processedData.length} valid treatment lines found`);
+
+  // Validate the processed data
+  const validation = validateForm4Data(processedData);
+  if (validation.errors.length > 0) {
+    console.warn('Form 4 validation errors:', validation.errors);
+  }
+  if (validation.warnings.length > 0) {
+    console.warn('Form 4 validation warnings:', validation.warnings);
+  }
 
   // Generate testing requirements
   const allTestRequirements = [];
@@ -226,7 +277,7 @@ export const importQATrackingSheet = async (file) => {
   };
 };
 
-// Validate Form 4 data
+// Enhanced validation for Form 4 data
 export const validateForm4Data = (data) => {
   const errors = [];
   const warnings = [];
@@ -235,26 +286,36 @@ export const validateForm4Data = (data) => {
     const rowNum = index + 1;
     
     // Required fields
-    if (!entry.line_no) errors.push(`Row ${rowNum}: Missing Line Number`);
-    if (!entry.start_ch) errors.push(`Row ${rowNum}: Missing Start Chainage`);
-    if (!entry.finish_ch) errors.push(`Row ${rowNum}: Missing Finish Chainage`);
-    if (!entry.treatment_type) errors.push(`Row ${rowNum}: Missing Treatment Type`);
-    if (!entry.quantity) errors.push(`Row ${rowNum}: Missing Quantity`);
+    if (!entry.line_no && entry.line_no !== 0) errors.push(`Row ${rowNum}: Missing Line Number`);
+    if (!entry.start_ch && entry.start_ch !== 0) errors.push(`Row ${rowNum}: Missing Start Chainage`);
+    if (!entry.finish_ch && entry.finish_ch !== 0) errors.push(`Row ${rowNum}: Missing Finish Chainage`);
+    if (!entry.treatment_type) warnings.push(`Row ${rowNum}: Missing Treatment Type`);
+    if (!entry.quantity && entry.quantity !== 0) warnings.push(`Row ${rowNum}: Missing Quantity`);
 
     // Data validation
-    if (entry.start_ch && entry.finish_ch) {
+    if (entry.start_ch !== undefined && entry.finish_ch !== undefined) {
       if (parseFloat(entry.finish_ch) <= parseFloat(entry.start_ch)) {
-        errors.push(`Row ${rowNum}: Finish chainage must be greater than start chainage`);
+        errors.push(`Row ${rowNum}: Finish chainage (${entry.finish_ch}) must be greater than start chainage (${entry.start_ch})`);
       }
     }
 
-    if (entry.quantity && parseFloat(entry.quantity) <= 0) {
-      warnings.push(`Row ${rowNum}: Quantity should be greater than 0`);
+    if (entry.quantity !== undefined && parseFloat(entry.quantity) <= 0) {
+      warnings.push(`Row ${rowNum}: Quantity should be greater than 0 (currently ${entry.quantity})`);
+    }
+
+    // Line number validation
+    if (entry.line_no !== undefined && isNaN(parseFloat(entry.line_no))) {
+      errors.push(`Row ${rowNum}: Line number must be numeric (currently "${entry.line_no}")`);
     }
 
     // Treatment code mapping
-    if (entry.treatment_type && !getQRACode(entry.treatment_type)) {
-      warnings.push(`Row ${rowNum}: Treatment type "${entry.treatment_type}" not recognized`);
+    if (entry.treatment_type && entry.treatment_code === 'OTHER') {
+      warnings.push(`Row ${rowNum}: Treatment type "${entry.treatment_type}" not recognized in QRA mapping`);
+    }
+
+    // Chainage sequence validation
+    if (index > 0 && entry.start_ch < data[index - 1].finish_ch) {
+      warnings.push(`Row ${rowNum}: Chainage sequence may be incorrect - starts before previous line ends`);
     }
   });
 
