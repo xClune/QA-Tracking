@@ -3,32 +3,43 @@
 export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) => {
   const tests = [];
   
+  // Enhanced debugging for area calculation
+  console.log(`=== Testing Check for Line ${lineNo} ===`);
+  console.log(`Treatment: "${treatment}"`);
+  console.log(`Quantity: ${quantity}`);
+  console.log(`Unit: "${unit}"`);
+  console.log(`Area passed: ${area}`);
+  
   // Calculate effective area in m²
   let effectiveArea = 0;
   if (unit === 'm2' || unit === 'm²') {
     effectiveArea = quantity;
+    console.log(`Using quantity as area (unit is ${unit}): ${effectiveArea}m²`);
   } else if (area && area > 0) {
     effectiveArea = area;
+    console.log(`Using calculated area: ${effectiveArea}m²`);
   } else {
-    // For linear treatments, we can't determine area without width
-    // Only generate tests if we have a valid area
+    console.log(`❌ No valid area found - quantity: ${quantity}, unit: ${unit}, area: ${area}`);
     return tests;
   }
 
-  // Only generate tests for PAVEMENT WORKS that require compaction testing
+  // Check if this is pavement work
   const requiresTesting = isPavementWork(treatment);
+  console.log(`Is pavement work: ${requiresTesting}`);
   
   if (!requiresTesting) {
-    console.log(`No testing required for: ${treatment}`);
+    console.log(`❌ No testing required for: ${treatment}`);
     return tests;
   }
 
-  console.log(`Testing required for: ${treatment}, Area: ${effectiveArea}m²`);
+  console.log(`✅ Testing required for: ${treatment}, Area: ${effectiveArea}m²`);
 
   // MRTS04 Compaction Testing - Primary testing requirement for pavement works
   if (effectiveArea > 0) {
     // Sand replacement tests: 1 per 1000m²
     const sandTests = Math.max(1, Math.ceil(effectiveArea / 1000));
+    console.log(`Sand replacement tests: ${sandTests} (${effectiveArea}/1000)`);
+    
     tests.push({
       test: 'Sand Replacement Test (MRTS04)',
       frequency: sandTests,
@@ -39,8 +50,10 @@ export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) 
       method: 'Sand Replacement'
     });
     
-    // Nuclear densometer tests: 2 per 1000m² (higher frequency for QC)
-    const nucTests = Math.max(2, Math.ceil(effectiveArea / 500)); // 2 per 1000m² = 1 per 500m²
+    // Nuclear densometer tests: 2 per 1000m²
+    const nucTests = Math.ceil(effectiveArea / 500); // 2 per 1000m² = 1 per 500m²
+    console.log(`Nuclear densometer tests: ${nucTests} (${effectiveArea}/500)`);
+    
     tests.push({
       test: 'Nuclear Densometer Test (MRTS04)',
       frequency: nucTests,
@@ -53,6 +66,8 @@ export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) 
 
     // Additional testing for stabilized materials
     if (isStabilizedMaterial(treatment)) {
+      console.log(`✅ Stabilized material detected - adding UCS tests`);
+      
       // UCS Testing for stabilized materials
       const ucsTests = Math.max(1, Math.ceil(effectiveArea / 2000)); // 1 per 2000m²
       tests.push({
@@ -64,24 +79,12 @@ export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) 
         priority: 'high',
         method: 'Laboratory Testing'
       });
-
-      // 28-day UCS for larger areas
-      if (effectiveArea > 5000) {
-        const ucs28Tests = Math.max(1, Math.ceil(effectiveArea / 5000));
-        tests.push({
-          test: 'UCS Testing 28-day (MRTS07a)',
-          frequency: ucs28Tests,
-          description: 'Unconfined compressive strength at 28 days',
-          standard: 'MRTS07a',
-          targetUCS: '≥2.0 MPa @ 28 days',
-          priority: 'medium',
-          method: 'Laboratory Testing'
-        });
-      }
     }
 
     // CBR testing for granular pavement materials
     if (isGranularPavement(treatment)) {
+      console.log(`✅ Granular pavement detected - adding CBR tests`);
+      
       const cbrTests = Math.max(1, Math.ceil(effectiveArea / 3000)); // 1 per 3000m²
       tests.push({
         test: 'CBR Testing (MRTS05)',
@@ -94,6 +97,9 @@ export const getTestingRequirements = (treatment, quantity, unit, area, lineNo) 
       });
     }
   }
+
+  console.log(`Total tests generated: ${tests.length}`);
+  console.log(`=== End Testing Check ===\n`);
 
   return tests.map(test => ({
     ...test,
@@ -117,6 +123,7 @@ const isPavementWork = (treatment) => {
     'reconstruct unbound',
     'in-situ stabilisation',
     'insitu stabilisation', 
+    'in situ stabilisation',
     'stabilisation',
     'granular overlay',
     'pavement',
@@ -125,7 +132,7 @@ const isPavementWork = (treatment) => {
     'lime stabilisation'
   ];
 
-  // Works that DO NOT require testing
+  // Works that DO NOT require testing (more specific matching)
   const nonPavementKeywords = [
     'bulk fill',
     'reshape table drain',
@@ -138,25 +145,37 @@ const isPavementWork = (treatment) => {
     'pothole repair',
     'crack repair',
     'edge repair',
-    'seal',
+    'bitumen spray seal',
     'spray seal',
     'asphalt surfacing'
   ];
 
-  // Check exclusions first
+  // Check exclusions first - but be more specific about seals
   for (const keyword of nonPavementKeywords) {
     if (treatmentLower.includes(keyword)) {
+      console.log(`❌ Excluded by keyword: "${keyword}"`);
       return false;
     }
+  }
+  
+  // Special check for seal work (but not if it's part of a pavement work description)
+  if (treatmentLower.includes('seal') && 
+      !treatmentLower.includes('stabilisation') && 
+      !treatmentLower.includes('pavement') &&
+      !treatmentLower.includes('overlay')) {
+    console.log(`❌ Excluded as seal work (not part of pavement work)`);
+    return false;
   }
 
   // Check if it's a pavement work
   for (const keyword of pavementKeywords) {
     if (treatmentLower.includes(keyword)) {
+      console.log(`✅ Matched pavement keyword: "${keyword}"`);
       return true;
     }
   }
 
+  console.log(`❌ No pavement keywords matched for: "${treatment}"`);
   return false;
 };
 
@@ -189,34 +208,6 @@ export const testPriorities = {
   low: { color: 'blue', description: 'Verification and documentation' }
 };
 
-// MRTS Standards reference
-export const mrtsStandards = {
-  'MRTS04': {
-    title: 'Unbound Pavement - Density Testing',
-    description: 'Field density testing procedures for unbound pavement materials',
-    methods: ['Sand Replacement: 1 per 1000m²', 'Nuclear Densometer: 2 per 1000m²'],
-    targets: '≥100% SMDD for pavement layers'
-  },
-  'MRTS05': {
-    title: 'Unbound Pavement - Material Testing',
-    description: 'Laboratory testing of unbound pavement materials',
-    methods: ['Grading', 'Plasticity Index', 'CBR: 1 per 3000m²'],
-    targets: 'PI ≤6, CBR ≥80%'
-  },
-  'MRTS07a': {
-    title: 'Stabilised Pavement - UCS Testing',
-    description: 'Unconfined compressive strength testing',
-    methods: ['Laboratory UCS: 1 per 2000m²', 'Field Core UCS'],
-    targets: '≥1.5 MPa @ 7 days, ≥2.0 MPa @ 28 days'
-  },
-  'MRTS11': {
-    title: 'Sprayed Bituminous Surfacing',
-    description: 'Testing requirements for bituminous seals and surfacing',
-    methods: ['Core Sampling', 'Thickness Measurement', 'Retention Testing'],
-    targets: 'Thickness as per design, Retention ≥85%'
-  }
-};
-
 // Helper function to get testing summary for a treatment
 export const getTestingSummary = (treatment, area) => {
   if (!isPavementWork(treatment) || !area || area <= 0) {
@@ -227,7 +218,7 @@ export const getTestingSummary = (treatment, area) => {
   }
 
   const sandTests = Math.max(1, Math.ceil(area / 1000));
-  const nucTests = Math.max(2, Math.ceil(area / 500));
+  const nucTests = Math.ceil(area / 500);
   
   return {
     testingRequired: true,

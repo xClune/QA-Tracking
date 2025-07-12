@@ -3,12 +3,18 @@ import { Upload, Download, Eye, ArrowLeft } from 'lucide-react';
 import RoadProgressVisual from './RoadProgressVisual';
 import Form4Table from './Form4Table';
 import TestingRequirements from './TestingRequirements';
+import TestingConfiguration from './TestingConfiguration';
 import { processForm4Upload } from '../utils/excelUtils';
 import { exportToExcel } from '../utils/excelUtils';
 
 const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
   const [showTestingRequirements, setShowTestingRequirements] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
+
+  // Debug logging
+  console.log('Dashboard render - project:', project);
+  console.log('Testing requirements length:', project.testingRequirements?.length || 0);
+  console.log('Show testing requirements:', showTestingRequirements);
 
   const handleForm4Upload = async (event) => {
     const file = event.target.files[0];
@@ -19,12 +25,16 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
     try {
       const { form4Data, testingRequirements } = await processForm4Upload(file);
       
+      console.log('Processed form4Data:', form4Data.length, 'entries');
+      console.log('Processed testingRequirements:', testingRequirements.length, 'tests');
+      
       const updatedProject = {
         ...project,
         form4Data,
         testingRequirements
       };
 
+      console.log('Updated project:', updatedProject);
       onUpdateProject(updatedProject);
       setUploadStatus(`Successfully processed ${form4Data.length} Form 4 entries with ${testingRequirements.length} testing requirements`);
       
@@ -75,6 +85,13 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
   const completedTests = project.testingRequirements?.filter(test => test.status === 'completed').length || 0;
   const completedLines = project.form4Data?.filter(entry => entry.line_complete).length || 0;
 
+  // Enhanced button click handler with debugging
+  const handleShowTestingRequirements = () => {
+    console.log('Button clicked - current state:', showTestingRequirements);
+    console.log('Testing requirements available:', project.testingRequirements?.length || 0);
+    setShowTestingRequirements(!showTestingRequirements);
+  };
+
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
@@ -106,6 +123,14 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
         {/* Progress Visual */}
         <RoadProgressVisual form4Data={project.form4Data} />
 
+        {/* Testing Configuration */}
+        {project.form4Data?.length > 0 && (
+          <TestingConfiguration
+            project={project}
+            onUpdateProject={onUpdateProject}
+          />
+        )}
+
         {/* Stats Dashboard */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-md">
@@ -114,11 +139,21 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="text-lg font-semibold mb-2 text-gray-700">Tests Required</h3>
-            <p className="text-3xl font-bold text-orange-600">{project.testingRequirements?.length || 0}</p>
+            <p className="text-3xl font-bold text-orange-600">
+              {project.testingRequirements?.reduce((sum, test) => sum + (test.frequency || 0), 0) || 0}
+            </p>
+            <p className="text-sm text-gray-500">
+              {project.testingRequirements?.length || 0} test types
+            </p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="text-lg font-semibold mb-2 text-gray-700">Tests Completed</h3>
-            <p className="text-3xl font-bold text-green-600">{completedTests}</p>
+            <p className="text-3xl font-bold text-green-600">
+              {project.testingRequirements?.filter(test => test.status === 'completed').reduce((sum, test) => sum + (test.frequency || 0), 0) || 0}
+            </p>
+            <p className="text-sm text-gray-500">
+              {completedTests} test types complete
+            </p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="text-lg font-semibold mb-2 text-gray-700">Lines Complete</h3>
@@ -147,11 +182,12 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
           </label>
           
           <button
-            onClick={() => setShowTestingRequirements(!showTestingRequirements)}
+            onClick={handleShowTestingRequirements}
             className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+            disabled={!project.testingRequirements?.length}
           >
             <Eye className="w-5 h-5" />
-            {showTestingRequirements ? 'Hide' : 'Show'} Testing Requirements
+            {showTestingRequirements ? 'Hide' : 'Show'} Testing Requirements ({project.testingRequirements?.length || 0})
           </button>
         </div>
 
@@ -159,17 +195,29 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
         {project.form4Data?.length > 0 && (
           <Form4Table
             form4Data={project.form4Data}
+            testingRequirements={project.testingRequirements || []}
             onUpdateWorkStatus={updateWorkStatus}
             onUpdateCheckboxField={updateCheckboxField}
           />
         )}
 
-        {/* Testing Requirements */}
-        {showTestingRequirements && project.testingRequirements?.length > 0 && (
-          <TestingRequirements
-            testingRequirements={project.testingRequirements}
-            onUpdateTestStatus={updateTestStatus}
-          />
+        {/* Testing Requirements - Enhanced debugging */}
+        {showTestingRequirements && (
+          <div className="mb-6">
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg mb-4">
+              Debug: Showing {project.testingRequirements?.length || 0} testing requirements
+            </div>
+            {project.testingRequirements?.length > 0 ? (
+              <TestingRequirements
+                testingRequirements={project.testingRequirements}
+                onUpdateTestStatus={updateTestStatus}
+              />
+            ) : (
+              <div className="bg-white p-6 rounded-lg shadow-md text-center text-gray-500">
+                No testing requirements found. Make sure to upload a Form 4 file with pavement works.
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

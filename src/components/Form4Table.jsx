@@ -1,9 +1,200 @@
 import React from 'react';
 
-const Form4Table = ({ form4Data, onUpdateWorkStatus, onUpdateCheckboxField }) => {
+const Form4Table = ({ form4Data, testingRequirements = [], onUpdateWorkStatus, onUpdateCheckboxField }) => {
+  // Calculate completion metrics
+  const totalLines = form4Data.length;
+  const completedLines = form4Data.filter(e => e.line_complete).length;
+  const completionPercentage = totalLines > 0 ? (completedLines / totalLines) * 100 : 0;
+  
+  // Calculate QA progress
+  const photosReceived = form4Data.filter(e => e.photos_received).length;
+  const photosReviewed = form4Data.filter(e => e.photos_reviewed).length;
+  const itpReceived = form4Data.filter(e => e.itp_received).length;
+  
+  const photosPercentage = totalLines > 0 ? (photosReceived / totalLines) * 100 : 0;
+  const itpPercentage = totalLines > 0 ? (itpReceived / totalLines) * 100 : 0;
+
+  // Calculate testing completion
+  const totalTestFrequency = testingRequirements.reduce((sum, test) => sum + (test.frequency || 0), 0);
+  const completedTestFrequency = testingRequirements
+    .filter(test => test.status === 'completed')
+    .reduce((sum, test) => sum + (test.frequency || 0), 0);
+  const testingPercentage = totalTestFrequency > 0 ? (completedTestFrequency / totalTestFrequency) * 100 : 0;
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
-      <h3 className="text-lg font-semibold p-6 border-b bg-gray-50">Form 4 Treatments</h3>
+      {/* Header with Completion Gauge */}
+      <div className="p-6 border-b bg-gray-50">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Form 4 Treatments</h3>
+          <div className="text-sm text-gray-600">
+            {completedLines}/{totalLines} lines complete ({completionPercentage.toFixed(1)}%)
+          </div>
+        </div>
+        
+        {/* Completion Gauges */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Overall Completion Gauge */}
+          <div className="text-center">
+            <div className="relative inline-flex items-center justify-center w-16 h-16 mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  className="text-gray-200"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  strokeDasharray={`${2 * Math.PI * 28}`}
+                  strokeDashoffset={`${2 * Math.PI * 28 * (1 - completionPercentage / 100)}`}
+                  className="text-green-500 transition-all duration-500"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-semibold text-green-600">
+                  {completionPercentage.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-600">Lines Complete</div>
+          </div>
+
+          {/* Testing Completion Gauge */}
+          <div className="text-center">
+            <div className="relative inline-flex items-center justify-center w-16 h-16 mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  className="text-gray-200"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  strokeDasharray={`${2 * Math.PI * 28}`}
+                  strokeDashoffset={`${2 * Math.PI * 28 * (1 - testingPercentage / 100)}`}
+                  className="text-orange-500 transition-all duration-500"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-semibold text-orange-600">
+                  {testingPercentage.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-600">
+              Tests Complete
+              <div className="text-xs text-gray-500">
+                {completedTestFrequency}/{totalTestFrequency}
+              </div>
+            </div>
+          </div>
+
+          {/* Photos Progress */}
+          <div className="text-center">
+            <div className="relative inline-flex items-center justify-center w-16 h-16 mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  className="text-gray-200"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  strokeDasharray={`${2 * Math.PI * 28}`}
+                  strokeDashoffset={`${2 * Math.PI * 28 * (1 - photosPercentage / 100)}`}
+                  className="text-blue-500 transition-all duration-500"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-semibold text-blue-600">
+                  {photosPercentage.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-600">Photos Received</div>
+          </div>
+
+          {/* ITP Progress */}
+          <div className="text-center">
+            <div className="relative inline-flex items-center justify-center w-16 h-16 mb-2">
+              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  className="text-gray-200"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                  strokeDasharray={`${2 * Math.PI * 28}`}
+                  strokeDashoffset={`${2 * Math.PI * 28 * (1 - itpPercentage / 100)}`}
+                  className="text-purple-500 transition-all duration-500"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-semibold text-purple-600">
+                  {itpPercentage.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-600">ITPs Received</div>
+          </div>
+        </div>
+
+        {/* Progress Bars */}
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">Overall Progress</span>
+            <span className="font-medium">{completedLines}/{totalLines}</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="bg-green-500 h-2 rounded-full transition-all duration-500" 
+              style={{ width: `${completionPercentage}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
