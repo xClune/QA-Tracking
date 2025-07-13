@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Download, ArrowLeft } from 'lucide-react';
+import { Upload, Download, ArrowLeft, Eye, EyeOff, TestTube } from 'lucide-react';
 import RoadProgressVisual from './RoadProgressVisual';
 import TreatmentTypeProgress from './TreatmentTypeProgress';
 import Form4Table from './Form4Table';
@@ -9,16 +9,11 @@ import { processForm4Upload } from '../utils/excelUtils';
 import { exportToExcel } from '../utils/excelUtils';
 
 const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
-  const [showTestingRequirements, setShowTestingRequirements] = useState(false);
+  const [showTestingRequirements, setShowTestingRequirements] = useState(true); // Default to TRUE
   const [showProgressVisualization, setShowProgressVisualization] = useState(true);
   const [showTreatmentTypeProgress, setShowTreatmentTypeProgress] = useState(true);
-  const [showForm4Table, setShowForm4Table] = useState(true);
+  const [showForm4Table, setShowForm4Table] = useState(false); // Default to FALSE to reduce clutter
   const [uploadStatus, setUploadStatus] = useState('');
-
-  // Debug logging
-  console.log('Dashboard render - project:', project);
-  console.log('Testing requirements length:', project.testingRequirements?.length || 0);
-  console.log('Show testing requirements:', showTestingRequirements);
 
   const handleForm4Upload = async (event) => {
     const file = event.target.files[0];
@@ -41,6 +36,9 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
       console.log('Updated project:', updatedProject);
       onUpdateProject(updatedProject);
       setUploadStatus(`Successfully processed ${form4Data.length} Form 4 entries with ${testingRequirements.length} testing requirements`);
+      
+      // Auto-show testing requirements after upload
+      setShowTestingRequirements(true);
       
       setTimeout(() => setUploadStatus(''), 3000);
     } catch (error) {
@@ -99,13 +97,6 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
   const completedTests = project.testingRequirements?.filter(test => test.status === 'completed').length || 0;
   const completedLines = project.form4Data?.filter(entry => entry.line_complete).length || 0;
 
-  // Enhanced button click handler with debugging
-  const handleShowTestingRequirements = () => {
-    console.log('Button clicked - current state:', showTestingRequirements);
-    console.log('Testing requirements available:', project.testingRequirements?.length || 0);
-    setShowTestingRequirements(!showTestingRequirements);
-  };
-
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
@@ -133,34 +124,6 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
             </button>
           </div>
         </div>
-
-        {/* Progress Visualization - Above Treatment Type Progress */}
-        {showProgressVisualization && project.form4Data?.length > 0 && (
-          <div className="mb-6">
-            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
-              Project Progress Visualization: {project.form4Data.length} treatments • {((project.form4Data.filter(e => e.line_complete).length / project.form4Data.length) * 100).toFixed(1)}% complete
-            </div>
-            <RoadProgressVisual form4Data={project.form4Data} />
-          </div>
-        )}
-
-        {/* Treatment Type Progress */}
-        {showTreatmentTypeProgress && project.form4Data?.length > 0 && (
-          <div className="mb-6">
-            <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-3 rounded-lg mb-4">
-              Treatment Type Progress: Progress by treatment category
-            </div>
-            <TreatmentTypeProgress form4Data={project.form4Data} />
-          </div>
-        )}
-
-        {/* Testing Configuration */}
-        {project.form4Data?.length > 0 && (
-          <TestingConfiguration
-            project={project}
-            onUpdateProject={onUpdateProject}
-          />
-        )}
 
         {/* Stats Dashboard */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
@@ -199,7 +162,17 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
           </div>
         )}
 
-        {/* Action Buttons - Simplified */}
+        {/* Testing Configuration - Above buttons for easy access */}
+        {project.form4Data?.length > 0 && (
+          <div className="mb-6">
+            <TestingConfiguration
+              project={project}
+              onUpdateProject={onUpdateProject}
+            />
+          </div>
+        )}
+
+        {/* Action Buttons */}
         <div className="flex gap-4 mb-6 flex-wrap">
           <label className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 cursor-pointer">
             <Upload className="w-5 h-5" />
@@ -211,29 +184,109 @@ const Dashboard = ({ project, onUpdateProject, onBackToProjects }) => {
               className="hidden"
             />
           </label>
+          
+          {/* View Toggle Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowTestingRequirements(!showTestingRequirements)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                showTestingRequirements 
+                  ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              <TestTube className="w-4 h-4" />
+              Testing Requirements
+              {showTestingRequirements ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            
+            <button
+              onClick={() => setShowProgressVisualization(!showProgressVisualization)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                showProgressVisualization 
+                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Progress Visual
+              {showProgressVisualization ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            
+            <button
+              onClick={() => setShowTreatmentTypeProgress(!showTreatmentTypeProgress)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                showTreatmentTypeProgress 
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Treatment Progress
+              {showTreatmentTypeProgress ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            
+            <button
+              onClick={() => setShowForm4Table(!showForm4Table)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                showForm4Table 
+                  ? 'bg-teal-600 text-white hover:bg-teal-700' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Form 4 Table
+              {showForm4Table ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
-        {/* Testing Requirements - Show ABOVE Form 4 when visible */}
-        {showTestingRequirements && (
+        {/* Testing Requirements - PROMINENT PLACEMENT */}
+        {showTestingRequirements && project.testingRequirements?.length > 0 && (
           <div className="mb-6">
-            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg mb-4">
-              Testing Requirements: {project.testingRequirements?.length || 0} test types • {project.testingRequirements?.reduce((sum, test) => sum + (test.frequency || 0), 0) || 0} total tests required
-            </div>
-            {project.testingRequirements?.length > 0 ? (
-              <TestingRequirements
-                testingRequirements={project.testingRequirements}
-                onUpdateTestStatus={updateTestStatus}
-                onUpdateTestDetails={updateTestDetails}
-              />
-            ) : (
-              <div className="bg-white p-6 rounded-lg shadow-md text-center text-gray-500">
-                No testing requirements found. Make sure to upload a Form 4 file with pavement works.
+            <div className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded-lg mb-4">
+              <div className="flex items-center gap-2">
+                <TestTube className="w-5 h-5" />
+                <span className="font-medium">Testing Requirements (MRTS Standards):</span>
+                <span>{project.testingRequirements.length} test types</span>
+                <span>•</span>
+                <span>{project.testingRequirements.reduce((sum, test) => sum + (test.frequency || 0), 0)} total tests required</span>
+                <span>•</span>
+                <span>{((project.testingRequirements.reduce((sum, test) => sum + (test.testsCompleted || 0), 0) / Math.max(1, project.testingRequirements.reduce((sum, test) => sum + (test.frequency || 0), 0))) * 100).toFixed(1)}% complete</span>
               </div>
-            )}
+            </div>
+            <TestingRequirements
+              testingRequirements={project.testingRequirements}
+              onUpdateTestStatus={updateTestStatus}
+              onUpdateTestDetails={updateTestDetails}
+              onToggleVisibility={setShowTestingRequirements}
+            />
           </div>
         )}
 
-        {/* Form 4 Table*/}
+        {/* Progress Visualization */}
+        {showProgressVisualization && project.form4Data?.length > 0 && (
+          <div className="mb-6">
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
+              Project Progress Visualization: {project.form4Data.length} treatments • {((project.form4Data.filter(e => e.line_complete).length / project.form4Data.length) * 100).toFixed(1)}% complete
+            </div>
+            <RoadProgressVisual form4Data={project.form4Data} />
+          </div>
+        )}
+
+        {/* Treatment Type Progress */}
+        {showTreatmentTypeProgress && project.form4Data?.length > 0 && (
+          <div className="mb-6">
+            <div className="bg-indigo-50 border border-indigo-200 text-indigo-700 px-4 py-3 rounded-lg mb-4">
+              Treatment Type Progress: Progress by treatment category
+            </div>
+            <TreatmentTypeProgress 
+              form4Data={project.form4Data} 
+              onToggleVisibility={setShowTreatmentTypeProgress}
+            />
+          </div>
+        )}
+
+
+
+        {/* Form 4 Table - Lower priority, hidden by default */}
         {showForm4Table && project.form4Data?.length > 0 && (
           <div className="mb-6">
             <div className="bg-teal-50 border border-teal-200 text-teal-700 px-4 py-3 rounded-lg mb-4">
