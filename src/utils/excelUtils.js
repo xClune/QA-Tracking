@@ -68,7 +68,7 @@ export const processForm4Upload = async (file) => {
       quantity: quantity,
       unit: row['Unit'] || row['UNIT'] || 'm',
       area: area,
-      status: 'planning',
+      status: 'planned', // Changed from 'planning' to 'planned'
       photos_received: false,
       photos_reviewed: false,
       compaction_required: treatmentType ? (
@@ -112,7 +112,9 @@ export const processForm4Upload = async (file) => {
       entryId: entry.id,
       status: 'pending',
       chainage: `${entry.start_ch} - ${entry.finish_ch}`,
-      treatmentType: entry.treatment_type
+      treatmentType: entry.treatment_type,
+      testsCompleted: 0,
+      testsInProgress: 0
     })));
   });
 
@@ -164,7 +166,10 @@ export const exportToExcel = (project) => {
       'Test Type': test.test,
       'Description': test.description,
       'Standard': test.standard,
-      'Frequency': test.frequency,
+      'Tests Required': test.frequency,
+      'Tests Completed': test.testsCompleted || 0,
+      'Tests In Progress': test.testsInProgress || 0,
+      'Tests Pending': (test.frequency || 0) - (test.testsCompleted || 0) - (test.testsInProgress || 0),
       'Priority': test.priority,
       'Target SMDD': test.targetSMDD || '',
       'Target UCS': test.targetUCS || '',
@@ -183,9 +188,11 @@ export const exportToExcel = (project) => {
     { Metric: 'Project Name', Value: project.name },
     { Metric: 'Date Created', Value: project.created },
     { Metric: 'Total Treatments', Value: project.form4Data.length },
-    { Metric: 'Total Tests Required', Value: project.testingRequirements?.length || 0 },
-    { Metric: 'Tests Completed', Value: project.testingRequirements?.filter(t => t.status === 'completed').length || 0 },
+    { Metric: 'Total Tests Required', Value: project.testingRequirements?.reduce((sum, test) => sum + (test.frequency || 0), 0) || 0 },
+    { Metric: 'Tests Completed', Value: project.testingRequirements?.reduce((sum, test) => sum + (test.testsCompleted || 0), 0) || 0 },
+    { Metric: 'Tests In Progress', Value: project.testingRequirements?.reduce((sum, test) => sum + (test.testsInProgress || 0), 0) || 0 },
     { Metric: 'Lines Complete', Value: project.form4Data.filter(e => e.line_complete).length },
+    { Metric: 'Treatments Planned', Value: project.form4Data.filter(e => e.status === 'planned').length },
     { Metric: 'Treatments in Progress', Value: project.form4Data.filter(e => e.status === 'in-progress').length },
     { Metric: 'Treatments Completed', Value: project.form4Data.filter(e => e.status === 'completed').length },
     { Metric: 'Export Date', Value: new Date().toLocaleString() }
@@ -207,13 +214,13 @@ export const exportToExcel = (project) => {
         'Unit': entry.unit,
         'Completed': 0,
         'In Progress': 0,
-        'Planning': 0
+        'Planned': 0
       };
     }
     treatmentSummary[key].Count++;
     treatmentSummary[key]['Total Quantity'] += parseFloat(entry.quantity) || 0;
     treatmentSummary[key][entry.status === 'completed' ? 'Completed' : 
-                          entry.status === 'in-progress' ? 'In Progress' : 'Planning']++;
+                          entry.status === 'in-progress' ? 'In Progress' : 'Planned']++;
   });
 
   const ws4 = XLSX.utils.json_to_sheet(Object.values(treatmentSummary));
@@ -253,7 +260,7 @@ export const importQATrackingSheet = async (file) => {
       itp_received: row["ITP'S RECEIVED Y/N"] === 'Y',
       line_complete: row['LINE COMPLETE Y/N'] === 'Y',
       compaction_required: row['COMPACTION TESTING REQUIRED Y/N'] === 'YES',
-      status: row['LINE COMPLETE Y/N'] === 'Y' ? 'completed' : 'planning'
+      status: row['LINE COMPLETE Y/N'] === 'Y' ? 'completed' : 'planned' // Changed from 'planning'
     })).filter(row => row.line_no);
   }
 
@@ -266,6 +273,8 @@ export const importQATrackingSheet = async (file) => {
       test: 'Compaction Testing',
       standard: 'MRTS04',
       frequency: (row['NO. TESTS SAND REPLACEMENT'] || 0) + (row['NO. TESTS NUC DENSOMETER'] || 0),
+      testsCompleted: row['CV result'] ? parseInt(row['CV result']) || 0 : 0,
+      testsInProgress: 0,
       status: row['CV result'] ? 'completed' : 'pending',
       targetSMDD: row['TARGET SMDD %'] + '%'
     })).filter(row => row.lineNo);

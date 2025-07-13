@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Form4Table = ({ form4Data, testingRequirements = [], onUpdateWorkStatus, onUpdateCheckboxField }) => {
+const Form4Table = ({ form4Data, testingRequirements = [], onUpdateWorkStatus, onUpdateCheckboxField, isVisible = true, onToggleVisibility }) => {
   // Calculate completion metrics
   const totalLines = form4Data.length;
   const completedLines = form4Data.filter(e => e.line_complete).length;
@@ -21,14 +21,46 @@ const Form4Table = ({ form4Data, testingRequirements = [], onUpdateWorkStatus, o
     .reduce((sum, test) => sum + (test.frequency || 0), 0);
   const testingPercentage = totalTestFrequency > 0 ? (completedTestFrequency / totalTestFrequency) * 100 : 0;
 
+  if (!isVisible) {
+    return (
+      <div className="bg-white p-4 rounded-lg shadow-md mb-6 border-l-4 border-teal-500">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 bg-teal-500 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Form 4 Treatments</h3>
+              <p className="text-sm text-gray-600">
+                {totalLines} total treatments • {completedLines} lines complete • {completionPercentage.toFixed(1)}% complete
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onToggleVisibility(true)}
+            className="text-teal-600 hover:text-teal-800 font-medium text-sm"
+          >
+            Show Details
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
       {/* Header with Completion Gauge */}
       <div className="p-6 border-b bg-gray-50">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Form 4 Treatments</h3>
-          <div className="text-sm text-gray-600">
-            {completedLines}/{totalLines} lines complete ({completionPercentage.toFixed(1)}%)
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-600">
+              {completedLines}/{totalLines} lines complete ({completionPercentage.toFixed(1)}%)
+            </div>
+            <button
+              onClick={() => onToggleVisibility(false)}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              Hide
+            </button>
           </div>
         </div>
         
@@ -292,7 +324,7 @@ const Form4Table = ({ form4Data, testingRequirements = [], onUpdateWorkStatus, o
                       'bg-gray-50 text-gray-800'
                     }`}
                   >
-                    <option value="planning">Planning</option>
+                    <option value="planned">Planned</option>
                     <option value="in-progress">In Progress</option>
                     <option value="completed">Completed</option>
                   </select>
@@ -319,7 +351,7 @@ const Form4Table = ({ form4Data, testingRequirements = [], onUpdateWorkStatus, o
         <div className="flex justify-between items-center text-sm text-gray-600">
           <span>Total: {form4Data.length} treatments</span>
           <div className="flex gap-4">
-            <span>Planning: {form4Data.filter(e => e.status === 'planning').length}</span>
+            <span>Planned: {form4Data.filter(e => e.status === 'planned').length}</span>
             <span>In Progress: {form4Data.filter(e => e.status === 'in-progress').length}</span>
             <span>Completed: {form4Data.filter(e => e.status === 'completed').length}</span>
             <span className="font-medium">Lines Complete: {form4Data.filter(e => e.line_complete).length}</span>
